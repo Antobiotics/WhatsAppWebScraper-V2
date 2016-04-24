@@ -1,15 +1,12 @@
-import json
 import requests
 import time
 from selenium.common.exceptions import WebDriverException, TimeoutException, \
     StaleElementReferenceException, NoSuchElementException
 from selenium.webdriver import ActionChains
 from selenium.webdriver.support.wait import WebDriverWait
-import Scripts
 from Webdriver import Webdriver
 from selenium.webdriver.common.by import By
 import selenium.webdriver.support.expected_conditions as ec
-import selenium.webdriver.support.ui as ui
 from selenium.webdriver.common.keys import Keys
 
 # ===================================================================
@@ -45,9 +42,11 @@ class WhatsAppWebScraper:
 
         # Scrape each chat
         for i in range(1,6):
+            # Debugging purposes
             print("Loading contact number " + str(i))
+            startTime = time.time()
 
-            self.browser.implicitly_wait(2) # TODO check if this is useful
+            self.browser.implicitly_wait(2) # TODO find a better way to wait for chat to load
             chat = self.loadChat()  # load all conversations for current open chat
 
             # Get contact name and type (contact/group).
@@ -57,13 +56,17 @@ class WhatsAppWebScraper:
             contactData = {"contact": {"name":contactName,"type":contactType},"messages":[]}
 
             # Get messages from current chat
-            print("Get messages")
+            print("Get messages for: " + contactName)
             messages = self.getMessages(chat, contactType, contactName)
             contactData['messages'].append(messages)
-            print("Finished getting messages")
+            print("Got " + str(len(messages)) + " messages.")
 
             # send to server
             requests.post(SERVER_URL_CHAT, json=contactData, headers=SERVER_POST_HEADERS)
+
+            # Debugging purposes
+            totalTime = time.time() - startTime
+            print("This took " + str(totalTime) + " seconds.")
 
             # go to next chat
             self.goToNextContact()
@@ -76,14 +79,14 @@ class WhatsAppWebScraper:
         General helper function. Searches and waits for css element to appear on page and returns it,
         if it doesnt appear after timeout seconds prints relevant exception and returns None.
         """
-        print("Wait for element: " + cssSelector)
+        # print("Wait for element: " + cssSelector)
         if cssContainer == None:
             cssContainer = self.browser
 
         try:
             elements = WebDriverWait(cssContainer, timeout).\
                 until(ec.presence_of_all_elements_located((By.CSS_SELECTOR,cssSelector)))
-            print("Done waiting for element: " + cssSelector)
+            # print("Done waiting for element: " + cssSelector)
             if singleElement:
                 return elements[0]
             return elements
@@ -116,14 +119,16 @@ class WhatsAppWebScraper:
         counter = 0
         # load counter previous messages or until no "btn-more" exists
         # TODO currently loads 2 previous message. Decide whether this needs to change.
-        while counter < 2:
+        # while counter < 20:
+        while True:
             counter += 1
             btnMore = self.waitForElement(".btn-more", 2)
             if btnMore != None:
                 try:
                     actions.click(btnMore).perform()
-                except StaleElementReferenceException:
-                    continue
+                except StaleElementReferenceException as e:
+                    print(e.msg)
+                    break
             else:
                 break
         # return chat
@@ -171,27 +176,17 @@ class WhatsAppWebScraper:
 
         for msg in messageElements:
 
-            # System date message
-            if self.getElement(".message-system", msg) != None:
-                # TODO fix case where last day is name of day and not date (for example SUNDAY)
-                # Check that it's not a contact leaving/exiting group
-                if "joined" not in msg.text and "left" not in msg.text:
-                    lastDay = str(msg.text).replace("\u2060","")
-                    lastName = contactName
 
             # Incoming/Outgoing message
-            elif self.getElement(".selectable-text",msg) != None:
+            textContainer = self.getElement(".selectable-text",msg)
+            if  textContainer != None:
                 # Get text and time
-                text = msg.find_element_by_css_selector(".selectable-text").text
+                text = textContainer.text
                 # TODO add AM/PM
                 time = msg.find_element_by_css_selector(".message-datetime").text + ", " + lastDay
 
-                # Outgoing message case
-                if self.getElement(".message-out",msg) != None:
-                    name = "Me" # TODO make sure this value is confirmed with server people
-
                 # Incoming message case
-                elif self.getElement(".message-in", msg):
+                if self.getElement(".message-in", msg):
                     if contactType == 'Contact':
                         name = contactName
                     else:
@@ -202,9 +197,21 @@ class WhatsAppWebScraper:
                             name = str(name.text).replace("\u2060","")
                             lastName = name
 
+                # Outgoing message case
+                elif self.getElement(".message-out",msg) != None:
+                    name = "Me" # TODO make sure this value is confirmed with server people
+
                 msgData = {"name":name, "text": text, "time":time}
                 messages.append(msgData)
-                print(msgData)
+                # print(msgData)
+
+            # System date message
+            elif self.getElement(".message-system", msg) != None:
+                # TODO fix case where last day is name of day and not date (for example SUNDAY)
+                # Check that it's not a contact leaving/exiting group
+                if "joined" not in msg.text and "left" not in msg.text:
+                    lastDay = str(msg.text).replace("\u2060","")
+                    lastName = contactName
 
             # Unsupported message type (image, video, audio...), we do not return these.
             else:
