@@ -1,6 +1,5 @@
-import requests
 import time
-from selenium.common.exceptions import WebDriverException, TimeoutException, \
+from selenium.common.exceptions import TimeoutException, \
     StaleElementReferenceException, NoSuchElementException
 from selenium.webdriver import ActionChains
 from selenium.webdriver.support.wait import WebDriverWait
@@ -14,7 +13,9 @@ from selenium.webdriver.common.keys import Keys
 SERVER_URL_CHAT = "http://localhost:8888/chat"
 SERVER_POST_HEADERS = {'Content-type': 'application/json', 'Accept': 'text/plain'}
 # ===================================================================
-
+# Days of the week
+weekDays = ('MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY')
+# ===================================================================
 
 class WhatsAppWebScraper:
     """
@@ -62,7 +63,7 @@ class WhatsAppWebScraper:
             print("Got " + str(len(messages)) + " messages.")
 
             # send to server
-            requests.post(SERVER_URL_CHAT, json=contactData, headers=SERVER_POST_HEADERS)
+            # requests.post(SERVER_URL_CHAT, json=contactData, headers=SERVER_POST_HEADERS)
 
             # Debugging purposes
             totalTime = time.time() - startTime
@@ -118,9 +119,9 @@ class WhatsAppWebScraper:
 
         counter = 0
         # load counter previous messages or until no "btn-more" exists
-        # TODO currently loads 2 previous message. Decide whether this needs to change.
-        # while counter < 20:
-        while True:
+        # TODO currently loads 2 previous message.
+        while counter < 2:
+        # while True:
             counter += 1
             btnMore = self.waitForElement(".btn-more", 2)
             if btnMore != None:
@@ -166,23 +167,19 @@ class WhatsAppWebScraper:
 
     def getMessages(self, chat, contactType, contactName):
         # TODO this logic is very very slow - make it faster.
-        # by: 1) split to incoming and outgoing 2) put most likely first 3) remove contains and stuff
 
-        # TODO this needs to change - it only wait for one message to load, not all of them.
         messageElements = self.waitForElement(".msg",10,None,False)
         messages = []
         name, text, time = None, None, None
-        lastDay = "11/11/1111" # TODO validate with server people
+        lastDay = "11/11/1111"
 
         for msg in messageElements:
-
 
             # Incoming/Outgoing message
             textContainer = self.getElement(".selectable-text",msg)
             if  textContainer != None:
                 # Get text and time
                 text = textContainer.text
-                # TODO add AM/PM
                 time = msg.find_element_by_css_selector(".message-datetime").text + ", " + lastDay
 
                 # Incoming message case
@@ -199,7 +196,7 @@ class WhatsAppWebScraper:
 
                 # Outgoing message case
                 elif self.getElement(".message-out",msg) != None:
-                    name = "Me" # TODO make sure this value is confirmed with server people
+                    name = "Me"
 
                 msgData = {"name":name, "text": text, "time":time}
                 messages.append(msgData)
@@ -207,9 +204,8 @@ class WhatsAppWebScraper:
 
             # System date message
             elif self.getElement(".message-system", msg) != None:
-                # TODO fix case where last day is name of day and not date (for example SUNDAY)
                 # Check that it's not a contact leaving/exiting group
-                if "joined" not in msg.text and "left" not in msg.text:
+                if msg.text in weekDays:
                     lastDay = str(msg.text).replace("\u2060","")
                     lastName = contactName
 
