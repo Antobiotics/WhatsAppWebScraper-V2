@@ -180,7 +180,7 @@ class WhatsAppWebScraper:
         messageElements = self.waitForElement(".msg",10,None,False)
         messages = []
         name, text, time = None, None, None
-        lastDay = "4/7/2014" # TODO validate with server API
+        lastName, lastDay = contactName, "1/1/2000" # TODO validate with server API
 
         for msg in messageElements:
 
@@ -214,10 +214,10 @@ class WhatsAppWebScraper:
 
             # System date message
             elif self.getElement(".message-system", msg) is not None:
-                # Check that it's not a contact leaving/exiting group
-                if msg.text in WEEKDAYS:
+                # If it is a date or a weekday name
+                if msg.text[-4] == '/' or msg.text in WEEKDAYS:
                     lastDay = str(msg.text).replace("\u2060","")
-                    lastName = contactName
+                    print(msg.text)            
 
             # Unsupported message type (image, video, audio...), we do not return these.
             else:
