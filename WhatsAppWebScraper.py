@@ -1,24 +1,28 @@
+import requests
 import time
-import requests  # todo why erase this?
+
+from Webdriver import Webdriver
 from selenium.common.exceptions import TimeoutException, \
     StaleElementReferenceException, NoSuchElementException
 from selenium.webdriver import ActionChains
 from selenium.webdriver.support.wait import WebDriverWait
-from Webdriver import Webdriver
 from selenium.webdriver.common.by import By
 import selenium.webdriver.support.expected_conditions as ec
 from selenium.webdriver.common.keys import Keys
 
 # ===================================================================
+# Global variables
+# ===================================================================
 # Server data
 SERVER_URL_CHAT = "http://localhost:8888/chat"
 SERVER_URL_FINISHED = "http://localhost:8888/chatFinished"
 SERVER_POST_HEADERS = {'Content-type': 'application/json', 'Accept': 'text/plain'}
-# ===================================================================
 # Days of the week
-weekDays = ('MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY')
-# ===================================================================
+WEEKDAYS = ('MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY')
 
+# ===================================================================
+# Scraper class
+# ===================================================================
 class WhatsAppWebScraper:
     """
     Main class for scraping whatsapp. Receives open browser, goes to WhatsApp Web page, scrapes data
@@ -31,28 +35,30 @@ class WhatsAppWebScraper:
         self.browser.get("https://web.whatsapp.com/")  # Navigate browser to WhatsApp page
 
         # Wait in current page for user to log in using barcode scan.
-        self.waitForElement(".infinite-list-viewport",30)
+        self.waitForElement(".infinite-list-viewport",300)
 
+# ===================================================================
+# Main scraper function
+# ===================================================================
 
     def scrape(self):
         print("start scraping")
 
-        actions = ActionChains(self.browser)  # init actions option
+        actions = ActionChains(self.browser)  # init actions option (click, send keyboard keys, etc)
 
         # Get to first contact chat
         searchBox = self.waitForElement(".input.input-search")
         actions.click(searchBox).send_keys(Keys.TAB).perform()
 
         # Scrape each chat
-        for i in range(1,4):
-            # Debugging purposes
-            print("Loading contact number " + str(i))
-            startTime = time.time()
+        # TODO currently scrape limited amount of users for debugging
+        for i in range(1,5):
 
-            self.browser.implicitly_wait(2) # TODO find a better way to wait for chat to load
+            loadStartTime = time.time()
             chat = self.loadChat()  # load all conversations for current open chat
+            print("Loaded chat in " + str(time.time() - loadStartTime) + "seconds")
 
-            # Get contact name and type (contact/group).
+            # Get contact name and type (person/group).
             contactName, contactType = self.getContactDetails(actions)
 
             # Initialize data item to store messages
@@ -60,16 +66,14 @@ class WhatsAppWebScraper:
 
             # Get messages from current chat
             print("Get messages for: " + contactName)
+            startTime = time.time()
             messages = self.getMessages(chat, contactType, contactName)
+            totalMsgTime = time.time() - startTime
             contactData['messages'].append(messages)
-            print("Got " + str(len(messages)) + " messages.")
+            print("Got " + str(len(messages)) + " messages in " + str(totalMsgTime))
 
             # send to server
             requests.post(SERVER_URL_CHAT, json=contactData, headers=SERVER_POST_HEADERS)
-
-            # Debugging purposes
-            totalTime = time.time() - startTime
-            print("This took " + str(totalTime) + " seconds.")
 
             # go to next chat
             self.goToNextContact()
@@ -79,6 +83,9 @@ class WhatsAppWebScraper:
         # send finished signal to server
         requests.post(SERVER_URL_FINISHED, json={}, headers=SERVER_POST_HEADERS)
 
+# ===================================================================
+# Helper functions
+# ===================================================================
 
     def waitForElement(self, cssSelector, timeout=10, cssContainer=None, singleElement=True):
         """
@@ -86,7 +93,7 @@ class WhatsAppWebScraper:
         if it doesnt appear after timeout seconds prints relevant exception and returns None.
         """
         # print("Wait for element: " + cssSelector)
-        if cssContainer == None:
+        if cssContainer is None:
             cssContainer = self.browser
 
         try:
@@ -103,10 +110,9 @@ class WhatsAppWebScraper:
     def getElement(self, cssSelector, cssContainer = None):
         """
         Helper function. Searches for element by css selector, if it doesn't exists catchs
-        NoSuchElementException and
-        returns None.
+        NoSuchElementException and returns None.
         """
-        if cssContainer == None:
+        if cssContainer is None:
             cssContainer = self.browser
         try:
             return cssContainer.find_element_by_css_selector(cssSelector)
@@ -115,40 +121,37 @@ class WhatsAppWebScraper:
 
     def loadChat(self):
         """
-        Get all message for current open chat.
+        Load to page all message for current open chat.
         """
         print("Load chat")
+
         actions = ActionChains(self.browser)  # init actions
         chat = self.waitForElement(".message-list")  # wait for chat to load
         actions.click(chat).perform()
 
         counter = 0
-        # load counter previous messages or until no "btn-more" exists
+        # load previous messages until no "btn-more" exists
         # TODO currently loads 10 previous message.
-        while counter < 2:
-        # while True:
+        # while counter < 10:
+        while True:
             counter += 1
             btnMore = self.waitForElement(".btn-more", 2)
-            if btnMore != None:
+            if btnMore is not None:
                 try:
                     actions.click(btnMore).perform()
                 except StaleElementReferenceException as e:
-                    print(e.msg)
                     break
             else:
                 break
-        # return chat
 
     def goToNextContact(self, isFirst = False):
         """
-        Goes to next contact chat in contact list
+        Goes to next contact chat in contact list. This is done by locating the "search" box and
+        pressing tab and then arrow down.
         """
         actions = ActionChains(self.browser)
-        print("GO TO NEXT CONTACT")
         actions.click(self.waitForElement(".input.input-search")).perform()
         actions.send_keys(Keys.TAB).send_keys(Keys.ARROW_DOWN).perform()
-        # actions.click(self.waitForElement("main")).send_keys(Keys.TAB).send_keys(Keys.TAB).send_keys(Keys.ARROW_DOWN).perform()
-        # actions.click(self.waitForElement(".pane-chat-msgs")).perform()
 
     def getContactDetails(self, actions):
         """
@@ -156,11 +159,9 @@ class WhatsAppWebScraper:
         opening a submenu which contains the word Contact or Group and extracting that word.
         """
         # Get contact name
-        # TODO maybe make this selector less specific to match possible page variations
+        # TODO make this selector less specific to match possible page variations
         contactName = self.browser.find_element_by_css_selector("#main header div.chat-body "
                                                                 "div.chat-main h2 span").text
-        # # Open chat menu. Waits only 5 seconds for it to load.
-        # chatMenu = self.clickOnDynamicElement(actions, "#main .icon-menu")
 
         # If this is a contact chat then this field will not appear
         if self.getElement(".msg-group") == None:
@@ -171,18 +172,21 @@ class WhatsAppWebScraper:
         return contactName, contactType
 
     def getMessages(self, chat, contactType, contactName):
+        """
+        Given a chat with a contact, return all messages formatted to be sent to server.
+        """
         # TODO this logic is very very slow - make it faster.
 
         messageElements = self.waitForElement(".msg",10,None,False)
         messages = []
         name, text, time = None, None, None
-        lastDay = "4/7/2014"
+        lastDay = "4/7/2014" # TODO validate with server API
 
         for msg in messageElements:
 
             # Incoming/Outgoing message
             textContainer = self.getElement(".selectable-text",msg)
-            if  textContainer != None:
+            if textContainer is not None:
                 # Get text and time
                 text = textContainer.text
                 time = msg.find_element_by_css_selector(".message-datetime").text + ", " + lastDay
@@ -200,17 +204,18 @@ class WhatsAppWebScraper:
                             lastName = name
 
                 # Outgoing message case
-                elif self.getElement(".message-out",msg) != None:
-                    name = "Me"
+                elif self.getElement(".message-out",msg) is not None:
+                    name = "Me" # TODO validate with server API
 
+                # Add message to message list
                 msgData = {"name":name, "text": text, "time":time}
                 messages.append(msgData)
-                # print(msgData)
+                # print(msgData) # Print each message
 
             # System date message
-            elif self.getElement(".message-system", msg) != None:
-                    # Check that it's not a contact leaving/exiting group
-                if msg.text in weekDays:
+            elif self.getElement(".message-system", msg) is not None:
+                # Check that it's not a contact leaving/exiting group
+                if msg.text in WEEKDAYS:
                     lastDay = str(msg.text).replace("\u2060","")
                     lastName = contactName
 

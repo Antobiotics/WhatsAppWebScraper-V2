@@ -6,19 +6,16 @@ This class opens and controls a web browser (for example a Chrome browser).
 """
 class Webdriver:
 
-    """
-    Create browser
-    """
     def __init__(self):
-        self.browser = webdriver.Chrome(executable_path="C:\Program Files\Python35\Scripts\chromedriver.exe")  # Create Chrome browser
+        self.browser = webdriver.Chrome()  # Create Chrome browser
+        # self.browser = webdriver.Chrome(executable_path="C:\Program Files\Python35\Scripts\chromedriver.exe")  # Create Chrome browser
         self.browser.maximize_window()
 
-    """
-    Close browser
-    """
     def close(self):
+        """
+        Close browser
+        """
         self.browser.close()
 
     def getBrowser(self):
         return self.browser
-
