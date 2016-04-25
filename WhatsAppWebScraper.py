@@ -1,4 +1,5 @@
 import time
+import requests  # todo why erase this?
 from selenium.common.exceptions import TimeoutException, \
     StaleElementReferenceException, NoSuchElementException
 from selenium.webdriver import ActionChains
@@ -11,6 +12,7 @@ from selenium.webdriver.common.keys import Keys
 # ===================================================================
 # Server data
 SERVER_URL_CHAT = "http://localhost:8888/chat"
+SERVER_URL_FINISHED = "http://localhost:8888/chatFinished"
 SERVER_POST_HEADERS = {'Content-type': 'application/json', 'Accept': 'text/plain'}
 # ===================================================================
 # Days of the week
@@ -42,7 +44,7 @@ class WhatsAppWebScraper:
         actions.click(searchBox).send_keys(Keys.TAB).perform()
 
         # Scrape each chat
-        for i in range(1,6):
+        for i in range(1,4):
             # Debugging purposes
             print("Loading contact number " + str(i))
             startTime = time.time()
@@ -63,7 +65,7 @@ class WhatsAppWebScraper:
             print("Got " + str(len(messages)) + " messages.")
 
             # send to server
-            # requests.post(SERVER_URL_CHAT, json=contactData, headers=SERVER_POST_HEADERS)
+            requests.post(SERVER_URL_CHAT, json=contactData, headers=SERVER_POST_HEADERS)
 
             # Debugging purposes
             totalTime = time.time() - startTime
@@ -73,6 +75,9 @@ class WhatsAppWebScraper:
             self.goToNextContact()
 
         print("done scraping")
+
+        # send finished signal to server
+        requests.post(SERVER_URL_FINISHED, json={}, headers=SERVER_POST_HEADERS)
 
 
     def waitForElement(self, cssSelector, timeout=10, cssContainer=None, singleElement=True):
@@ -119,7 +124,7 @@ class WhatsAppWebScraper:
 
         counter = 0
         # load counter previous messages or until no "btn-more" exists
-        # TODO currently loads 2 previous message.
+        # TODO currently loads 10 previous message.
         while counter < 2:
         # while True:
             counter += 1
@@ -159,9 +164,9 @@ class WhatsAppWebScraper:
 
         # If this is a contact chat then this field will not appear
         if self.getElement(".msg-group") == None:
-            contactType = "Contact"
+            contactType = "person"
         else:
-            contactType = "Group"
+            contactType = "group"
 
         return contactName, contactType
 
@@ -171,7 +176,7 @@ class WhatsAppWebScraper:
         messageElements = self.waitForElement(".msg",10,None,False)
         messages = []
         name, text, time = None, None, None
-        lastDay = "11/11/1111"
+        lastDay = "4/7/2014"
 
         for msg in messageElements:
 
@@ -184,11 +189,11 @@ class WhatsAppWebScraper:
 
                 # Incoming message case
                 if self.getElement(".message-in", msg):
-                    if contactType == 'Contact':
+                    if contactType == 'person':
                         name = contactName
                     else:
                         name = self.getElement(".message-author", msg)
-                        if name == None:
+                        if name is None:
                             name = lastName
                         else:
                             name = str(name.text).replace("\u2060","")
@@ -204,7 +209,7 @@ class WhatsAppWebScraper:
 
             # System date message
             elif self.getElement(".message-system", msg) != None:
-                # Check that it's not a contact leaving/exiting group
+                    # Check that it's not a contact leaving/exiting group
                 if msg.text in weekDays:
                     lastDay = str(msg.text).replace("\u2060","")
                     lastName = contactName

@@ -10,7 +10,7 @@ class Webdriver:
     Create browser
     """
     def __init__(self):
-        self.browser = webdriver.Chrome()  # Create Chrome browser
+        self.browser = webdriver.Chrome(executable_path="C:\Program Files\Python35\Scripts\chromedriver.exe")  # Create Chrome browser
         self.browser.maximize_window()
 
     """

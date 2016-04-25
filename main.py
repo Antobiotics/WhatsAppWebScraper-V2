@@ -19,8 +19,9 @@ def isTyping():
     scraper.scrape()  # scrape
     driver.close()  # close driver
 
+
     # loop for debugging
-    while True:
-        continue
+    # while True:
+    #     continue
 
 isTyping()
