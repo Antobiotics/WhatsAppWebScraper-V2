@@ -215,7 +215,7 @@ class WhatsAppWebScraper:
             # System date message
             elif self.getElement(".message-system", msg) is not None:
                 # If it is a date or a weekday name
-                if msg.text[-4] == '/' or msg.text in WEEKDAYS:
+                if msg.text[-10] == '/' or msg.text in WEEKDAYS:
                     lastDay = str(msg.text).replace("\u2060","")
                     print(msg.text)            
 
