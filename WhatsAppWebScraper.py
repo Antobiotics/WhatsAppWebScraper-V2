@@ -73,7 +73,8 @@ class WhatsAppWebScraper:
             print("Got " + str(len(messages)) + " messages in " + str(totalMsgTime))
 
             # send to server
-            requests.post(SERVER_URL_CHAT, json=contactData, headers=SERVER_POST_HEADERS)
+            #requests.post(SERVER_URL_CHAT, json=contactData, headers=SERVER_POST_HEADERS)
+            print str(contactData)
 
             # go to next chat
             self.goToNextContact()
@@ -81,7 +82,7 @@ class WhatsAppWebScraper:
         print("done scraping")
 
         # send finished signal to server
-        requests.post(SERVER_URL_FINISHED, json={}, headers=SERVER_POST_HEADERS)
+        #requests.post(SERVER_URL_FINISHED, json={}, headers=SERVER_POST_HEADERS)
 
 # ===================================================================
 # Helper functions
@@ -200,7 +201,8 @@ class WhatsAppWebScraper:
                         if name is None:
                             name = lastName
                         else:
-                            name = str(name.text).replace("\u2060","")
+                            #name = str(name.text).replace("\u2060","")
+                            name = name.text
                             lastName = name
 
                 # Outgoing message case
@@ -215,9 +217,10 @@ class WhatsAppWebScraper:
             # System date message
             elif self.getElement(".message-system", msg) is not None:
                 # If it is a date or a weekday name
-                if msg.text[-10] == '/' or msg.text in WEEKDAYS:
-                    lastDay = str(msg.text).replace("\u2060","")
-                    print(msg.text)            
+                print msg.text
+                #if msg.text[-10] == '/' or msg.text in WEEKDAYS:
+                    #lastDay = str(msg.text).replace("\u2060","")
+                    #print(msg.text)
 
             # Unsupported message type (image, video, audio...), we do not return these.
             else:
